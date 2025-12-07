@@ -79,7 +79,7 @@ export class ReusedBrowser implements vscodeTypes.Disposable {
     this._disposables = [];
   }
 
-  private async _startBackendIfNeeded(config: TestConfig) {
+  private async _startBackendIfNeeded(config: TestConfig, language?: 'javascript' | 'python') {
     if (this._backend) {
       // cancel any ongoing recording and hide toolbar, so running tests / picking locator / starting recording starts from a clean slate.
       this._resetNoWait('none');
@@ -126,6 +126,7 @@ export class ReusedBrowser implements vscodeTypes.Disposable {
     });
 
     this._backend = backend;
+    await backend.initialize(language);
 
     this._backend.on('inspectRequested', params => {
       if (this._settingsModel.pickLocatorCopyToClipboard.get() && params.locator)
@@ -263,7 +264,7 @@ export class ReusedBrowser implements vscodeTypes.Disposable {
     return !this._isRunningTests && !!this._pageCount;
   }
 
-  async record(model: TestModel, project: reporterTypes.FullProject) {
+  async record(model: TestModel, project: reporterTypes.FullProject, language?: 'javascript' | 'python') {
     if (!this._checkVersion(model.config))
       return;
     if (this._isRunningTests === 'run') {
@@ -277,7 +278,7 @@ export class ReusedBrowser implements vscodeTypes.Disposable {
       location: this._vscode.ProgressLocation.Notification,
       title: 'Playwright codegen',
       cancellable: true
-    }, async (progress, token) => this._doRecord(progress, model, testIdAttributeName, token));
+    }, async (progress, token) => this._doRecord(progress, model, testIdAttributeName, token, language));
   }
 
   async highlight(selector: string) {
@@ -316,7 +317,7 @@ export class ReusedBrowser implements vscodeTypes.Disposable {
     return true;
   }
 
-  private async _doRecord(progress: vscodeTypes.Progress<{ message?: string; increment?: number }>, model: TestModel, testIdAttributeName: string | undefined, token: vscodeTypes.CancellationToken) {
+  private async _doRecord(progress: vscodeTypes.Progress<{ message?: string; increment?: number }>, model: TestModel, testIdAttributeName: string | undefined, token: vscodeTypes.CancellationToken, language?: 'javascript' | 'python') {
     await this._startBackendIfNeeded(model.config);
     this._insertedEditActionCount = 0;
 
@@ -421,8 +422,9 @@ export class Backend extends BackendClient {
     return wsEndpoint + '?debug-controller';
   }
 
-  override async initialize() {
-    await this.send('initialize', { codegenId: 'playwright-test', sdkLanguage: 'javascript' });
+  override async initialize(language?: 'javascript' | 'python') {
+    const sdkLanguage = language || 'javascript';
+    await this.send('initialize', { codegenId: sdkLanguage === 'python' ? 'python-pytest' : 'playwright-test', sdkLanguage });
     await this.send('setReportStateChanged', { enabled: true });
   }
 

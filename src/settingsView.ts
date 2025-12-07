@@ -290,6 +290,15 @@ function htmlForWebview(vscode: vscodeTypes.VSCode, extensionUri: vscodeTypes.Ur
             <option value="3way">3-way</option>
           </select>
         </div>
+        <div class="hbox">
+          <label id="recordingLanguageLabel">${vscode.l10n.t('Recording language')}</label>
+        </div>
+        <div class="combobox">
+          <select setting="recordingLanguage" aria-labelledby="recordingLanguageLabel">
+            <option value="TypeScript">TypeScript</option>
+            <option value="Python">Python (pytest)</option>
+          </select>
+        </div>
       </div>
     </body>
     <script src="${script}" nonce="${nonce}"></script>

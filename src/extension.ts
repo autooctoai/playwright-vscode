@@ -224,10 +224,12 @@ export class Extension implements RunHooks {
           return;
 
         const showBrowser = this._settingsModel.showBrowser.get() ?? false;
+        const recordingLanguage = this._settingsModel.recordingLanguage.get() || 'TypeScript';
+        const language = recordingLanguage === 'Python' ? 'python' : 'javascript';
         try {
           await this._settingsModel.showBrowser.set(true);
           await this._showBrowserForRecording(file, project);
-          await this._reusedBrowser.record(model, project.project);
+          await this._reusedBrowser.record(model, project.project, language);
         } finally {
           await this._settingsModel.showBrowser.set(showBrowser);
         }
@@ -793,9 +795,13 @@ export class Extension implements RunHooks {
   }
 
   private async _createFileForNewTest(model: TestModel, project: TestProject) {
+    const recordingLanguage = this._settingsModel.recordingLanguage.get() || 'TypeScript';
+    const isTypeScript = recordingLanguage === 'TypeScript';
+    const extension = isTypeScript ? '.spec.ts' : '.py';
+    const prefix = isTypeScript ? 'test-' : 'test_';
     let file;
     for (let i = 1; i < 100; ++i) {
-      file = path.join(project.project.testDir, `test-${i}.spec.ts`);
+      file = path.join(project.project.testDir, `${prefix}${i}${extension}`);
       if (fs.existsSync(file))
         continue;
       break;
@@ -803,18 +809,30 @@ export class Extension implements RunHooks {
     if (!file)
       return;
 
-    await fs.promises.writeFile(file, `import { test, expect } from '@playwright/test';
+    const content = isTypeScript
+      ? `import { test, expect } from '@playwright/test';
 
 test('test', async ({ page }) => {
   // Recording...
-});`);
+});`
+      : `import asyncio
+from playwright.async_api import Page, expect
+
+
+async def test_example(page: Page) -> None:
+    # Recording...
+    pass`;
+
+    await fs.promises.writeFile(file, content);
 
     await model.handleWorkspaceChange({ created: new Set([file]), changed: new Set(), deleted: new Set() });
     await model.ensureTests([file]);
 
     const document = await this._vscode.workspace.openTextDocument(file);
     const editor = await this._vscode.window.showTextDocument(document);
-    editor.selection = new this._vscode.Selection(new this._vscode.Position(3, 2), new this._vscode.Position(3, 2 + '// Recording...'.length));
+    const recordingLineIndex = isTypeScript ? 3 : 3;
+    const recordingText = isTypeScript ? '// Recording...' : '# Recording...';
+    editor.selection = new this._vscode.Selection(new this._vscode.Position(recordingLineIndex, isTypeScript ? 2 : 4), new this._vscode.Position(recordingLineIndex, (isTypeScript ? 2 : 4) + recordingText.length));
 
     return file;
   }
